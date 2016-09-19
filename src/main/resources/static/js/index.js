@@ -13,11 +13,9 @@
  *
  */
 
-var ws = new WebSocket('wss://' + location.host + '/benchmark');
+var ws = new WebSocket('wss://' + location.host + '/network-benchmark');
 var video;
 var webRtcPeer;
-var mediaPipelineLatencies;
-var filterLatencies;
 
 window.onload = function() {
 	console = new Console();
@@ -25,8 +23,11 @@ window.onload = function() {
 	video = document.getElementById('video');
 	disableStopButton();
 
-	$('input[type=radio][name=removeFakeClients]').change(function() {
-		$('#playTime').attr('disabled', this.value == 'false');
+	$('input[type=radio][name=stopMethod]').change(function() {
+		$('#stopTime').attr('disabled', this.value == 'manual');
+	});
+	$('input[type=radio][name=mediaSource]').change(function() {
+		$('#mediaSourceUrl').attr('disabled', this.value == 'usermedia');
 	});
 }
 
@@ -39,20 +40,11 @@ ws.onmessage = function(message) {
 	console.info('Received message: ' + message.data);
 
 	switch (parsedMessage.id) {
-	case 'presenterResponse':
-	case 'viewerResponse':
-		response(parsedMessage);
+	case 'startResponse':
+		startResponse(parsedMessage);
 		break;
-	case 'error':
-		console.error("Error message from server: " + parsedMessage.message);
 	case 'stopCommunication':
-		dispose();
-		break;
-	case 'stopResponse':
-		if (parsedMessage.mediaPipelineLatencies) {
-			mediaPipelineLatencies = parsedMessage.mediaPipelineLatencies;
-			filterLatencies = parsedMessage.filterLatencies;
-		}
+		stopCommunication(parsedMessage);
 		break;
 	case 'iceCandidate':
 		webRtcPeer.addIceCandidate(parsedMessage.candidate, function(error) {
@@ -60,6 +52,10 @@ ws.onmessage = function(message) {
 				return console.error("Error adding candidate: " + error);
 			}
 		});
+		break;
+	case 'error':
+		console.error("Error message from server: " + parsedMessage.message);
+		dispose();
 		break;
 	case 'notEnoughResources':
 		stop(false);
@@ -70,131 +66,113 @@ ws.onmessage = function(message) {
 	}
 }
 
-function response(message) {
+function stopCommunication() {
+	// TODO force download
+	dispose();
+}
+
+function startResponse(message) {
 	if (message.response != 'accepted') {
 		var errorMsg = message.message ? message.message : 'Unknow error';
 		console.info('Call not accepted for the following reason: ' + errorMsg);
 		dispose();
 	} else {
-		webRtcPeer.processAnswer(message.sdpAnswer, function(error) {
-			if (error) {
-				return console.error(error);
+		if (message.sdpAnswer) {
+			webRtcPeer.processAnswer(message.sdpAnswer, function(error) {
+				if (error) {
+					return console.error(error);
+				}
+			});
+		}
+
+		var autoStop = $('input[name=stopMethod]:checked').val() == "auto";
+		if (autoStop) {
+			var stopTime = document.getElementById('stopTime').value;
+			console.info("Auto stop in " + stopTime + " milliseconds");
+			setInterval(stop, stopTime);
+		}
+	}
+}
+
+function start() {
+	var userMedia = $('input[name=mediaSource]:checked').val() == "usermedia";
+
+	if (userMedia) {
+		console.info("Using user media to feed WebRTC");
+
+		if (!webRtcPeer) {
+			showSpinner(video, "spinner.gif");
+
+			var options = {
+				localVideo : video,
+				onicecandidate : onIceCandidate
 			}
-		});
-	}
-}
+			webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(
+					options, function(error) {
+						if (error) {
+							return console.error(error);
+						}
+						webRtcPeer.generateOffer(onOffer);
+					});
 
-function presenter() {
-	if (!webRtcPeer) {
-		showSpinner(video);
-
-		var options = {
-			localVideo : video,
-			onicecandidate : onIceCandidate
 		}
-		webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(options,
-				function(error) {
-					if (error) {
-						return console.error(error);
-					}
-					webRtcPeer.generateOffer(onOfferPresenter);
-				});
+	} else {
+		var mediaSourceUrl = document.getElementById('mediaSourceUrl').value;
+		console.info("Using HTTP source (" + mediaSourceUrl
+				+ ") to feed WebRTC");
+		console
+				.warn("Video tag not playing media (all processing is inside NUBOMEDIA")
+		showSpinner(video, "play.gif");
 
-		enableStopButton();
+		sendStartMessage();
 	}
+
+	enableStopButton();
 }
 
-function onOfferPresenter(error, offerSdp) {
+function onOffer(error, sdpOffer) {
 	if (error) {
 		return console.error('Error generating the offer');
 	}
 	console.info('Invoking SDP offer callback function ' + location.host);
 
-	var sessionNumber = document.getElementById('sessionNumber').value;
+	sendStartMessage(sdpOffer);
+}
+
+function sendStartMessage() {
 	var loadPoints = document.getElementById('loadPoints').value;
+	var webrtcChannels = document.getElementById('webrtcChannels').value;
 	var bandwidth = document.getElementById('bandwidth').value;
+	var userMedia = $('input[name=mediaSource]:checked').val() == "usermedia";
+	var sdpOffer = userMedia ? arguments[0] : "";
+	var mediaSourceUrl = userMedia ? "" : document
+			.getElementById('mediaSourceUrl').value;
+
 	var message = {
-		id : 'presenter',
-		sessionNumber : sessionNumber,
+		id : 'start',
 		loadPoints : loadPoints,
-		sdpOffer : offerSdp,
-		bandwidth : bandwidth
+		webrtcChannels : webrtcChannels,
+		bandwidth : bandwidth,
+		sdpOffer : sdpOffer,
+		mediaSourceUrl : mediaSourceUrl
 	}
 	sendMessage(message);
-}
 
-function viewer() {
-	if (!webRtcPeer) {
-		showSpinner(video);
-
-		var options = {
-			remoteVideo : video,
-			onicecandidate : onIceCandidate
-		}
-		webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
-				function(error) {
-					if (error) {
-						return console.error(error);
-					}
-					this.generateOffer(onOfferViewer);
-				});
-
-		enableStopButton();
-	}
-}
-
-function onOfferViewer(error, offerSdp) {
-	if (error) {
-		return console.error('Error generating the offer');
-	}
-	console.info('Invoking SDP offer callback function ' + location.host);
-
-	var sessionNumber = document.getElementById('sessionNumber').value;
-	var processing = document.getElementById('processing').value;
-	var fakeClients = document.getElementById('fakeClients').value;
-	var removeFakeClients = document.getElementsByName('removeFakeClients')[0].checked;
-	var timeBetweenClients = document.getElementById('timeBetweenClients').value;
-	var playTime = document.getElementById('playTime').value;
-	var fakePoints = document.getElementById('fakePoints').value;
-	var fakeClientsPerInstance = document
-			.getElementById('fakeClientsPerInstance').value;
-	var rateKmsLatency = document.getElementById('rateKmsLatency').value;
-	var bandwidth = document.getElementById('bandwidth').value;
-
-	var message = {
-		id : 'viewer',
-		sessionNumber : sessionNumber,
-		sdpOffer : offerSdp,
-		processing : processing,
-		fakeClients : fakeClients,
-		removeFakeClients : removeFakeClients,
-		timeBetweenClients : timeBetweenClients,
-		playTime : playTime,
-		fakePoints : fakePoints,
-		fakeClientsPerInstance : fakeClientsPerInstance,
-		rateKmsLatency : rateKmsLatency,
-		bandwidth : bandwidth
-	}
-	sendMessage(message);
 }
 
 function onIceCandidate(candidate) {
 	console.log("Local candidate" + JSON.stringify(candidate));
-	var sessionNumber = document.getElementById('sessionNumber').value;
 
 	var message = {
 		id : 'onIceCandidate',
-		sessionNumber : sessionNumber,
 		candidate : candidate
 	};
 	sendMessage(message);
 }
 
 function stop() {
-	var sessionNumber = document.getElementById('sessionNumber').value;
 	var message = {
-		id : 'stop',
-		sessionNumber : sessionNumber
+		id : 'stop'
 	}
 	sendMessage(message);
 	dispose();
@@ -211,14 +189,12 @@ function dispose() {
 }
 
 function disableStopButton() {
-	enableButton('#presenter', 'presenter()');
-	enableButton('#viewer', 'viewer()');
+	enableButton('#start', 'start()');
 	disableButton('#stop');
 }
 
 function enableStopButton() {
-	disableButton('#presenter');
-	disableButton('#viewer');
+	disableButton('#start');
 	enableButton('#stop', 'stop()');
 }
 
@@ -239,9 +215,11 @@ function sendMessage(message) {
 }
 
 function showSpinner() {
-	for (var i = 0; i < arguments.length; i++) {
+	var gif = arguments[arguments.length - 1];
+	for (var i = 0; i < arguments.length - 1; i++) {
 		arguments[i].poster = './img/transparent.png';
-		arguments[i].style.background = "center transparent url('./img/spinner.gif') no-repeat";
+		arguments[i].style.background = "center transparent url('./img/" + gif
+				+ "') no-repeat";
 	}
 }
 
