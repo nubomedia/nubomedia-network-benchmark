@@ -39,7 +39,7 @@ public class NetworkBenchmarkApp implements WebSocketConfigurer {
 
   @Override
   public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-    registry.addHandler(callHandler(), "/benchmark");
+    registry.addHandler(callHandler(), "/network-benchmark");
   }
 
   public static void main(String[] args) throws Exception {
