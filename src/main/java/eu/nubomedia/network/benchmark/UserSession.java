@@ -135,13 +135,15 @@ public class UserSession {
     // Send response message
     handler.sendMessage(wsSession, new TextMessage(response.toString()));
 
-    // TODO read this value
-    int rateKmsLatency = 100;
-    latencyThread = gatherLatencies(rateKmsLatency);
+    int latencyRate = jsonMessage.getAsJsonPrimitive("latencyRate").getAsInt();
+    latencyThread = gatherLatencies(latencyRate);
   }
 
   private Thread gatherLatencies(final int rateKmsLatency) {
     sourceMediaPipeline.setLatencyStats(true);
+
+    log.info("[WS session {}] Starting latency gathering (rate {} ms)", wsSession.getId(),
+        rateKmsLatency);
 
     Thread thread = new Thread(new Runnable() {
       @Override

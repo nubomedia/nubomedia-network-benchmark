@@ -141,13 +141,15 @@ function sendStartMessage(sdpOffer) {
 	var loadPoints = document.getElementById('loadPoints').value;
 	var webrtcChannels = document.getElementById('webrtcChannels').value;
 	var bandwidth = document.getElementById('bandwidth').value;
+	var latencyRate = document.getElementById('latencyRate').value;
 
 	var message = {
 		id : 'start',
 		loadPoints : loadPoints,
 		webrtcChannels : webrtcChannels,
 		bandwidth : bandwidth,
-		sdpOffer : sdpOffer
+		sdpOffer : sdpOffer,
+		latencyRate : latencyRate
 	}
 	sendMessage(message);
 }
