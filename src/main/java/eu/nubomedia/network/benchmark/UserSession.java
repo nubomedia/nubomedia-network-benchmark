@@ -25,7 +25,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import org.kurento.client.EndpointStats;
 import org.kurento.client.EventListener;
@@ -68,8 +67,8 @@ public class UserSession {
   private MediaPipeline sourceMediaPipeline;
   private MediaPipeline targetMediaPipeline;
 
-  private List<WebRtcEndpoint> webRtcList1 = new ArrayList<>();
-  private List<WebRtcEndpoint> webRtcList2 = new ArrayList<>();
+  private List<MediaElement> webRtcList1 = new ArrayList<>();
+  private List<MediaElement> webRtcList2 = new ArrayList<>();
 
   private Multimap<String, Object> latencies =
       Multimaps.synchronizedListMultimap(ArrayListMultimap.<String, Object>create());
@@ -144,10 +143,11 @@ public class UserSession {
   }
 
   private Thread gatherLatencies(final int rateKmsLatency) {
-    sourceMediaPipeline.setLatencyStats(true);
-
     log.info("[WS session {}] Starting latency gathering (rate {} ms)", wsSession.getId(),
         rateKmsLatency);
+
+    sourceMediaPipeline.setLatencyStats(true);
+    targetMediaPipeline.setLatencyStats(true);
 
     Thread thread = new Thread(new Runnable() {
       @Override
@@ -156,26 +156,32 @@ public class UserSession {
 
         while (true) {
           try {
-            for (final WebRtcEndpoint w1 : webRtcList1) {
+            for (final MediaElement w1 : webRtcList1) {
               executor.execute(new Runnable() {
                 @Override
                 public void run() {
-                  latencies.put(w1.getName(), getVideoE2ELatency(w1));
+                  try {
+                    latencies.put(w1.getName(), getVideoE2ELatency(w1));
+                  } catch (Exception e) {
+                    log.debug("Exception gathering videoE2ELatency {}", e.getMessage());
+                  }
                 }
               });
             }
-            for (final WebRtcEndpoint w2 : webRtcList2) {
+            for (final MediaElement w2 : webRtcList2) {
               executor.execute(new Runnable() {
                 @Override
                 public void run() {
-                  latencies.put(w2.getName(), getVideoE2ELatency(w2));
+                  try {
+                    latencies.put(w2.getName(), getVideoE2ELatency(w2));
+                  } catch (Exception e) {
+                    log.debug("Exception gathering videoE2ELatency {}", e.getMessage());
+                  }
                 }
               });
             }
-
           } catch (Exception e) {
             log.debug("Exception gathering videoE2ELatency {}", e.getMessage());
-
           } finally {
             try {
               Thread.sleep(rateKmsLatency);
@@ -187,6 +193,7 @@ public class UserSession {
       }
     });
     thread.start();
+
     return thread;
   }
 
@@ -283,8 +290,7 @@ public class UserSession {
 
     if (latencyThread != null) {
       log.info("[WS session {}] Releasing latencies thread", wsSession.getId());
-      executor.shutdown();
-      executor.awaitTermination(5, TimeUnit.SECONDS);
+      executor.shutdownNow();
       latencyThread.interrupt();
     }
 
