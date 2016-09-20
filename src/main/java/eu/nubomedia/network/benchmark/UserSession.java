@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.kurento.client.EndpointStats;
 import org.kurento.client.EventListener;
@@ -71,6 +74,7 @@ public class UserSession {
   private Multimap<String, Object> latencies =
       Multimaps.synchronizedListMultimap(ArrayListMultimap.<String, Object>create());
   private Thread latencyThread;
+  private ExecutorService executor;
 
   private JsonObject jsonMessage;
 
@@ -148,14 +152,25 @@ public class UserSession {
     Thread thread = new Thread(new Runnable() {
       @Override
       public void run() {
+        executor = Executors.newFixedThreadPool(2 * webRtcList1.size());
+
         while (true) {
           try {
-            // TODO concurrent
-            for (WebRtcEndpoint w1 : webRtcList1) {
-              latencies.put(w1.getName(), getVideoE2ELatency(w1));
+            for (final WebRtcEndpoint w1 : webRtcList1) {
+              executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                  latencies.put(w1.getName(), getVideoE2ELatency(w1));
+                }
+              });
             }
-            for (WebRtcEndpoint w2 : webRtcList2) {
-              latencies.put(w2.getName(), getVideoE2ELatency(w2));
+            for (final WebRtcEndpoint w2 : webRtcList2) {
+              executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                  latencies.put(w2.getName(), getVideoE2ELatency(w2));
+                }
+              });
             }
 
           } catch (Exception e) {
@@ -263,11 +278,13 @@ public class UserSession {
     sourceWebRtcEndpoint.addIceCandidate(candidate);
   }
 
-  public void releaseSession() {
+  public void releaseSession() throws InterruptedException {
     log.info("[WS session {}] Releasing session", wsSession.getId());
 
     if (latencyThread != null) {
-      log.debug("[WS session {}] Releasing latencies thread", wsSession.getId());
+      log.info("[WS session {}] Releasing latencies thread", wsSession.getId());
+      executor.shutdown();
+      executor.awaitTermination(5, TimeUnit.SECONDS);
       latencyThread.interrupt();
     }
 

@@ -90,7 +90,8 @@ public class NetworkBenchmarkHandler extends TextWebSocketHandler {
     }
   }
 
-  private synchronized void stop(WebSocketSession wsSession) throws IOException {
+  private synchronized void stop(WebSocketSession wsSession)
+      throws IOException, InterruptedException {
     String wsSessionId = wsSession.getId();
     UserSession userSession = sessions.get(wsSessionId);
 
@@ -128,7 +129,7 @@ public class NetworkBenchmarkHandler extends TextWebSocketHandler {
   }
 
   private void handleErrorResponse(WebSocketSession wsSession, Throwable throwable)
-      throws IOException {
+      throws IOException, InterruptedException {
     // Send error message to client
     JsonObject response = new JsonObject();
     response.addProperty("id", "error");
@@ -141,7 +142,8 @@ public class NetworkBenchmarkHandler extends TextWebSocketHandler {
     stop(wsSession);
   }
 
-  private void notEnoughResources(WebSocketSession wsSession) throws IOException {
+  private void notEnoughResources(WebSocketSession wsSession)
+      throws IOException, InterruptedException {
     // Send notEnoughResources message to client
     JsonObject response = new JsonObject();
     response.addProperty("id", "notEnoughResources");
