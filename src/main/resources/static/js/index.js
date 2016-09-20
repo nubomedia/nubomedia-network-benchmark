@@ -89,7 +89,7 @@ function startResponse(message) {
 		if (autoStop) {
 			var stopTime = document.getElementById('stopTime').value;
 			console.info("Auto stop in " + stopTime + " milliseconds");
-			setInterval(stop, stopTime);
+			setTimeout(stop, stopTime);
 		}
 	}
 }
@@ -127,7 +127,8 @@ function start() {
 		sendStartMessage();
 	}
 
-	enableStopButton();
+	// Wait to finish the candidates gathering
+	setTimeout(enableStopButton, 5000);
 }
 
 function onOffer(error, sdpOffer) {
