@@ -15,15 +15,26 @@
 
 package eu.nubomedia.network.benchmark;
 
+import java.io.IOException;
+import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
+import org.kurento.client.EndpointStats;
 import org.kurento.client.EventListener;
 import org.kurento.client.IceCandidate;
 import org.kurento.client.KurentoClient;
+import org.kurento.client.MediaElement;
+import org.kurento.client.MediaLatencyStat;
 import org.kurento.client.MediaPipeline;
+import org.kurento.client.MediaType;
 import org.kurento.client.OnIceCandidateEvent;
 import org.kurento.client.Properties;
+import org.kurento.client.Stats;
 import org.kurento.client.WebRtcEndpoint;
 import org.kurento.jsonrpc.JsonUtils;
 import org.slf4j.Logger;
@@ -31,6 +42,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import com.google.gson.JsonObject;
 
 /**
@@ -51,7 +65,13 @@ public class UserSession {
   private MediaPipeline sourceMediaPipeline;
   private MediaPipeline targetMediaPipeline;
 
-  private List<Double> mediaPipelineLatencies = new ArrayList<>();
+  private List<WebRtcEndpoint> webRtcList1 = new ArrayList<>();
+  private List<WebRtcEndpoint> webRtcList2 = new ArrayList<>();
+
+  private Multimap<String, Object> latencies =
+      Multimaps.synchronizedListMultimap(ArrayListMultimap.<String, Object>create());
+  private Thread latencyThread;
+
   private JsonObject jsonMessage;
 
   public UserSession(WebSocketSession wsSession, NetworkBenchmarkHandler handler,
@@ -103,13 +123,112 @@ public class UserSession {
     int webrtcChannels = jsonMessage.getAsJsonPrimitive("webrtcChannels").getAsInt();
     for (int i = 0; i < webrtcChannels; i++) {
       WebRtcEndpoint webRtcEndpoint1 = createWebRtcEndpoint(sourceMediaPipeline, bandwidth);
+      webRtcEndpoint1.setName("sourceWebRtcEndpoint" + i);
       sourceWebRtcEndpoint.connect(webRtcEndpoint1);
       WebRtcEndpoint webRtcEndpoint2 = createWebRtcEndpoint(targetMediaPipeline, bandwidth);
+      webRtcEndpoint2.setName("targetWebRtcEndpoint" + i);
       connectWebRtcEndpoints(webRtcEndpoint1, webRtcEndpoint2);
+      webRtcList1.add(webRtcEndpoint1);
+      webRtcList2.add(webRtcEndpoint2);
     }
 
     // Send response message
     handler.sendMessage(wsSession, new TextMessage(response.toString()));
+
+    // TODO read this value
+    int rateKmsLatency = 100;
+    latencyThread = gatherLatencies(rateKmsLatency);
+  }
+
+  private Thread gatherLatencies(final int rateKmsLatency) {
+    sourceMediaPipeline.setLatencyStats(true);
+
+    Thread thread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        while (true) {
+          try {
+            // TODO concurrent
+            for (WebRtcEndpoint w1 : webRtcList1) {
+              latencies.put(w1.getName(), getVideoE2ELatency(w1));
+            }
+            for (WebRtcEndpoint w2 : webRtcList2) {
+              latencies.put(w2.getName(), getVideoE2ELatency(w2));
+            }
+
+          } catch (Exception e) {
+            log.debug("Exception gathering videoE2ELatency {}", e.getMessage());
+
+          } finally {
+            try {
+              Thread.sleep(rateKmsLatency);
+            } catch (InterruptedException e) {
+              log.debug("Interrupted thread for gathering videoE2ELatency");
+            }
+          }
+        }
+      }
+    });
+    thread.start();
+    return thread;
+  }
+
+  public String getCsv(Multimap<String, Object> multimap, boolean orderKeys) throws IOException {
+    StringWriter writer = new StringWriter();
+
+    // Header
+    boolean first = true;
+    Set<String> keySet = orderKeys ? new TreeSet<String>(multimap.keySet()) : multimap.keySet();
+    for (String key : keySet) {
+      if (!first) {
+        writer.append(',');
+      }
+      writer.append(key);
+      first = false;
+    }
+    writer.append('\n');
+
+    // Values
+    int i = 0;
+    boolean moreValues;
+    do {
+      moreValues = false;
+      first = true;
+      for (String key : keySet) {
+        Object[] array = multimap.get(key).toArray();
+        moreValues = i < array.length;
+        if (moreValues) {
+          if (!first) {
+            writer.append(',');
+          }
+          writer.append(array[i].toString());
+        }
+        first = false;
+      }
+      i++;
+      if (moreValues) {
+        writer.append('\n');
+      }
+    } while (moreValues);
+
+    writer.flush();
+    writer.close();
+
+    return writer.toString();
+  }
+
+  private double getVideoE2ELatency(MediaElement mediaElement) {
+    Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
+    Collection<Stats> values = stats.values();
+    for (Stats s : values) {
+      if (s instanceof EndpointStats) {
+        List<MediaLatencyStat> e2eLatency = ((EndpointStats) s).getE2ELatency();
+        if (!e2eLatency.isEmpty()) {
+          return e2eLatency.get(0).getAvg() / 1000; // microseconds
+        }
+      }
+    }
+    return 0;
   }
 
   private void connectWebRtcEndpoints(final WebRtcEndpoint webRtcEndpoint1,
@@ -142,8 +261,13 @@ public class UserSession {
     sourceWebRtcEndpoint.addIceCandidate(candidate);
   }
 
-  public List<Object> releaseSession() {
+  public void releaseSession() {
     log.info("[WS session {}] Releasing session", wsSession.getId());
+
+    if (latencyThread != null) {
+      log.debug("[WS session {}] Releasing latencies thread", wsSession.getId());
+      latencyThread.interrupt();
+    }
 
     if (sourceMediaPipeline != null) {
       log.info("[WS session {}] Releasing media pipelines", wsSession.getId());
@@ -163,8 +287,6 @@ public class UserSession {
       targetKurentoClient = null;
     }
 
-    // TODO
-    return null;
   }
 
   private WebRtcEndpoint createWebRtcEndpoint(MediaPipeline mediaPipeline, int bandwidth) {
@@ -189,8 +311,12 @@ public class UserSession {
     return sourceWebRtcEndpoint;
   }
 
-  public List<Double> getMediaPipelineLatencies() {
-    return mediaPipelineLatencies;
+  public Multimap<String, Object> getLatencies() {
+    return latencies;
+  }
+
+  public String getLatenciesAsCsv() throws IOException {
+    return getCsv(latencies, true);
   }
 
 }

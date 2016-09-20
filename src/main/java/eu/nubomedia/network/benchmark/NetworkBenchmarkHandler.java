@@ -16,7 +16,6 @@
 package eu.nubomedia.network.benchmark;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -28,7 +27,6 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 
@@ -87,24 +85,35 @@ public class NetworkBenchmarkHandler extends TextWebSocketHandler {
       UserSession userSession = new UserSession(wsSession, this, jsonMessage);
       userSession.initSession();
       sessions.put(wsSessionId, userSession);
+
+      log.debug("[WS session {}] Starting session {}", wsSession.getId(), sessions);
     }
   }
 
-  private synchronized void stop(WebSocketSession wsSession) {
+  private synchronized void stop(WebSocketSession wsSession) throws IOException {
     String wsSessionId = wsSession.getId();
-    log.info("[WS session {}] Stopping session", wsSessionId);
+    UserSession userSession = sessions.get(wsSessionId);
 
-    List<Object> latencies = sessions.get(wsSessionId).releaseSession();
+    if (userSession != null) {
+      log.info("[WS session {}] Stopping session", wsSessionId);
 
-    // Send stopCommunication
-    JsonObject response = new JsonObject();
-    response.addProperty("id", "stopCommunication");
-    if (latencies != null && !latencies.isEmpty()) {
-      response.addProperty("latencies", new Gson().toJson(latencies));
+      // Release session
+      userSession.releaseSession();
+
+      // Send stopCommunication
+      JsonObject response = new JsonObject();
+      response.addProperty("id", "stopCommunication");
+
+      String latencies = userSession.getLatenciesAsCsv();
+      if (latencies != null && !latencies.isEmpty()) {
+        response.addProperty("latencies", latencies);
+      }
+
+      sendMessage(wsSession, new TextMessage(response.toString()));
+
+      // Remove session from list
+      sessions.remove(wsSessionId);
     }
-    sendMessage(wsSession, new TextMessage(response.toString()));
-
-    sessions.remove(wsSessionId);
   }
 
   private void onIceCandidate(WebSocketSession wsSession, JsonObject jsonMessage) {
@@ -118,7 +127,8 @@ public class NetworkBenchmarkHandler extends TextWebSocketHandler {
     }
   }
 
-  private void handleErrorResponse(WebSocketSession wsSession, Throwable throwable) {
+  private void handleErrorResponse(WebSocketSession wsSession, Throwable throwable)
+      throws IOException {
     // Send error message to client
     JsonObject response = new JsonObject();
     response.addProperty("id", "error");
@@ -131,7 +141,7 @@ public class NetworkBenchmarkHandler extends TextWebSocketHandler {
     stop(wsSession);
   }
 
-  private void notEnoughResources(WebSocketSession wsSession) {
+  private void notEnoughResources(WebSocketSession wsSession) throws IOException {
     // Send notEnoughResources message to client
     JsonObject response = new JsonObject();
     response.addProperty("id", "notEnoughResources");
