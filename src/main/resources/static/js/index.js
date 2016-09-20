@@ -26,9 +26,6 @@ window.onload = function() {
 	$('input[type=radio][name=stopMethod]').change(function() {
 		$('#stopTime').attr('disabled', this.value == 'manual');
 	});
-	$('input[type=radio][name=mediaSource]').change(function() {
-		$('#mediaSourceUrl').attr('disabled', this.value == 'usermedia');
-	});
 }
 
 window.onbeforeunload = function() {
@@ -95,36 +92,23 @@ function startResponse(message) {
 }
 
 function start() {
-	var userMedia = $('input[name=mediaSource]:checked').val() == "usermedia";
+	console.info("Using user media to feed WebRTC");
 
-	if (userMedia) {
-		console.info("Using user media to feed WebRTC");
+	if (!webRtcPeer) {
+		showSpinner(video, "spinner.gif");
 
-		if (!webRtcPeer) {
-			showSpinner(video, "spinner.gif");
-
-			var options = {
-				localVideo : video,
-				onicecandidate : onIceCandidate
-			}
-			webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(
-					options, function(error) {
-						if (error) {
-							return console.error(error);
-						}
-						webRtcPeer.generateOffer(onOffer);
-					});
-
+		var options = {
+			localVideo : video,
+			onicecandidate : onIceCandidate
 		}
-	} else {
-		var mediaSourceUrl = document.getElementById('mediaSourceUrl').value;
-		console.info("Using HTTP source (" + mediaSourceUrl
-				+ ") to feed WebRTC");
-		console
-				.warn("Video tag not playing media (all processing is inside NUBOMEDIA")
-		showSpinner(video, "play.gif");
+		webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(options,
+				function(error) {
+					if (error) {
+						return console.error(error);
+					}
+					webRtcPeer.generateOffer(onOffer);
+				});
 
-		sendStartMessage();
 	}
 
 	// Wait to finish the candidates gathering
@@ -133,32 +117,26 @@ function start() {
 
 function onOffer(error, sdpOffer) {
 	if (error) {
-		return console.error('Error generating the offer');
+		return console.error('Error generating the offer ' + error);
 	}
 	console.info('Invoking SDP offer callback function ' + location.host);
 
 	sendStartMessage(sdpOffer);
 }
 
-function sendStartMessage() {
+function sendStartMessage(sdpOffer) {
 	var loadPoints = document.getElementById('loadPoints').value;
 	var webrtcChannels = document.getElementById('webrtcChannels').value;
 	var bandwidth = document.getElementById('bandwidth').value;
-	var userMedia = $('input[name=mediaSource]:checked').val() == "usermedia";
-	var sdpOffer = userMedia ? arguments[0] : "";
-	var mediaSourceUrl = userMedia ? "" : document
-			.getElementById('mediaSourceUrl').value;
 
 	var message = {
 		id : 'start',
 		loadPoints : loadPoints,
 		webrtcChannels : webrtcChannels,
 		bandwidth : bandwidth,
-		sdpOffer : sdpOffer,
-		mediaSourceUrl : mediaSourceUrl
+		sdpOffer : sdpOffer
 	}
 	sendMessage(message);
-
 }
 
 function onIceCandidate(candidate) {

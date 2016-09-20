@@ -15,18 +15,14 @@
 
 package eu.nubomedia.network.benchmark;
 
-import static com.google.common.base.Strings.isNullOrEmpty;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.kurento.client.EventListener;
 import org.kurento.client.IceCandidate;
 import org.kurento.client.KurentoClient;
-import org.kurento.client.MediaElement;
 import org.kurento.client.MediaPipeline;
 import org.kurento.client.OnIceCandidateEvent;
-import org.kurento.client.PlayerEndpoint;
 import org.kurento.client.Properties;
 import org.kurento.client.WebRtcEndpoint;
 import org.kurento.jsonrpc.JsonUtils;
@@ -87,41 +83,27 @@ public class UserSession {
     sourceMediaPipeline = sourceKurentoClient.createMediaPipeline();
     targetMediaPipeline = targetKurentoClient.createMediaPipeline();
 
-    MediaElement sourceMediaElement;
+    sourceWebRtcEndpoint = createWebRtcEndpoint(sourceMediaPipeline, bandwidth);
+    sourceWebRtcEndpoint.addOnIceCandidateListener(new EventListener<OnIceCandidateEvent>() {
+      @Override
+      public void onEvent(OnIceCandidateEvent event) {
+        JsonObject response = new JsonObject();
+        response.addProperty("id", "iceCandidate");
+        response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
+        handler.sendMessage(wsSession, new TextMessage(response.toString()));
+      }
+    });
+
     String sdpOffer = jsonMessage.getAsJsonPrimitive("sdpOffer").getAsString();
+    String sdpAnswer = sourceWebRtcEndpoint.processOffer(sdpOffer);
+    response.addProperty("sdpAnswer", sdpAnswer);
 
-    if (isNullOrEmpty(sdpOffer)) {
-      // HTTP source
-      String mediaSourceUrl = jsonMessage.getAsJsonPrimitive("mediaSourceUrl").getAsString();
-      log.info("[WS session {}] Media from {}", wsSession.getId(), mediaSourceUrl);
-      sourceMediaElement = new PlayerEndpoint.Builder(sourceMediaPipeline, mediaSourceUrl).build();
-
-    } else {
-      // User media
-      log.info("[WS session {}] Media from WebRTC user media", wsSession.getId());
-
-      sourceWebRtcEndpoint = createWebRtcEndpoint(sourceMediaPipeline, bandwidth);
-      sourceWebRtcEndpoint.addOnIceCandidateListener(new EventListener<OnIceCandidateEvent>() {
-        @Override
-        public void onEvent(OnIceCandidateEvent event) {
-          JsonObject response = new JsonObject();
-          response.addProperty("id", "iceCandidate");
-          response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
-          handler.sendMessage(wsSession, new TextMessage(response.toString()));
-        }
-      });
-
-      String sdpAnswer = sourceWebRtcEndpoint.processOffer(sdpOffer);
-      response.addProperty("sdpAnswer", sdpAnswer);
-
-      sourceWebRtcEndpoint.gatherCandidates();
-      sourceMediaElement = sourceWebRtcEndpoint;
-    }
+    sourceWebRtcEndpoint.gatherCandidates();
 
     int webrtcChannels = jsonMessage.getAsJsonPrimitive("webrtcChannels").getAsInt();
     for (int i = 0; i < webrtcChannels; i++) {
       WebRtcEndpoint webRtcEndpoint1 = createWebRtcEndpoint(sourceMediaPipeline, bandwidth);
-      sourceMediaElement.connect(webRtcEndpoint1);
+      sourceWebRtcEndpoint.connect(webRtcEndpoint1);
       WebRtcEndpoint webRtcEndpoint2 = createWebRtcEndpoint(targetMediaPipeline, bandwidth);
       connectWebRtcEndpoints(webRtcEndpoint1, webRtcEndpoint2);
     }
