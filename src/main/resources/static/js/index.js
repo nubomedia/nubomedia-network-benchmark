@@ -63,9 +63,22 @@ ws.onmessage = function(message) {
 	}
 }
 
-function stopCommunication() {
-	// TODO force download
+function stopCommunication(message) {
+	if (message.latencies) {
+		downloadFile(new Date().getTime() + ".csv", message.latencies);
+	}
 	dispose();
+}
+
+function downloadFile(filename, text) {
+	var element = document.createElement('a');
+	element.setAttribute('href', 'data:text/plain;charset=utf-8,'
+			+ encodeURIComponent(text));
+	element.setAttribute('download', filename);
+	element.style.display = 'none';
+	document.body.appendChild(element);
+	element.click();
+	document.body.removeChild(element);
 }
 
 function startResponse(message) {
