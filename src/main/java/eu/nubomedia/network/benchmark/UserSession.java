@@ -36,6 +36,7 @@ import org.kurento.client.MediaPipeline;
 import org.kurento.client.MediaType;
 import org.kurento.client.OnIceCandidateEvent;
 import org.kurento.client.Properties;
+import org.kurento.client.RecorderEndpoint;
 import org.kurento.client.Stats;
 import org.kurento.client.WebRtcEndpoint;
 import org.kurento.jsonrpc.JsonUtils;
@@ -67,8 +68,8 @@ public class UserSession {
   private MediaPipeline sourceMediaPipeline;
   private MediaPipeline targetMediaPipeline;
 
-  private List<MediaElement> webRtcList1 = new ArrayList<>();
-  private List<MediaElement> webRtcList2 = new ArrayList<>();
+  private List<MediaElement> sourceMediaElementList = new ArrayList<>();
+  private List<MediaElement> targetMediaElementList = new ArrayList<>();
 
   private Multimap<String, Object> latencies =
       Multimaps.synchronizedListMultimap(ArrayListMultimap.<String, Object>create());
@@ -131,8 +132,14 @@ public class UserSession {
       WebRtcEndpoint webRtcEndpoint2 = createWebRtcEndpoint(targetMediaPipeline, bandwidth);
       webRtcEndpoint2.setName("targetWebRtcEndpoint" + i);
       connectWebRtcEndpoints(webRtcEndpoint1, webRtcEndpoint2);
-      webRtcList1.add(webRtcEndpoint1);
-      webRtcList2.add(webRtcEndpoint2);
+      sourceMediaElementList.add(webRtcEndpoint1);
+
+      RecorderEndpoint recorder = new RecorderEndpoint.Builder(targetMediaPipeline,
+          "file:///tmp/" + webRtcEndpoint2.getName() + ".webm").build();
+      webRtcEndpoint2.connect(recorder);
+      recorder.setName(webRtcEndpoint2.getName());
+      recorder.record();
+      targetMediaElementList.add(recorder);
     }
 
     // Send response message
@@ -152,11 +159,11 @@ public class UserSession {
     Thread thread = new Thread(new Runnable() {
       @Override
       public void run() {
-        executor = Executors.newFixedThreadPool(2 * webRtcList1.size());
+        executor = Executors.newFixedThreadPool(2 * sourceMediaElementList.size());
 
         while (true) {
           try {
-            for (final MediaElement w1 : webRtcList1) {
+            for (final MediaElement w1 : sourceMediaElementList) {
               executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -168,12 +175,12 @@ public class UserSession {
                 }
               });
             }
-            for (final MediaElement w2 : webRtcList2) {
+            for (final MediaElement w2 : targetMediaElementList) {
               executor.execute(new Runnable() {
                 @Override
                 public void run() {
                   try {
-                    latencies.put(w2.getName(), getVideoE2ELatency(w2));
+                    latencies.put(w2.getName(), getVideoInputLatency(w2));
                   } catch (Exception e) {
                     log.debug("Exception gathering videoE2ELatency {}", e.getMessage());
                   }
@@ -249,6 +256,20 @@ public class UserSession {
         List<MediaLatencyStat> e2eLatency = ((EndpointStats) s).getE2ELatency();
         if (!e2eLatency.isEmpty()) {
           return e2eLatency.get(0).getAvg() / 1000; // microseconds
+        }
+      }
+    }
+    return 0;
+  }
+
+  private double getVideoInputLatency(MediaElement mediaElement) {
+    Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
+    Collection<Stats> values = stats.values();
+    for (Stats s : values) {
+      if (s instanceof EndpointStats) {
+        List<MediaLatencyStat> inputLatency = ((EndpointStats) s).getInputLatency();
+        if (!inputLatency.isEmpty()) {
+          return inputLatency.get(0).getAvg() / 1000; // microseconds
         }
       }
     }
