@@ -362,7 +362,16 @@ public class UserSession {
   }
 
   public String getLatenciesAsCsv() throws IOException {
-    return getCsv(latencies, true);
+    String emptyLine = "";
+    for (int i = 0; i < 2 * sourceMediaElementList.size(); i++) {
+      if (i != 0) {
+        emptyLine += ",";
+      }
+      emptyLine += "0.0";
+    }
+    emptyLine += "\n";
+    String csv = getCsv(latencies, true);
+    return csv.replaceAll(emptyLine, "");
   }
 
 }
