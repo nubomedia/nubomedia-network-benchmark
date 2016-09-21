@@ -142,11 +142,11 @@ public class UserSession {
       targetMediaElementList.add(recorder);
     }
 
-    // Send response message
-    handler.sendMessage(wsSession, new TextMessage(response.toString()));
-
     int latencyRate = jsonMessage.getAsJsonPrimitive("latencyRate").getAsInt();
     latencyThread = gatherLatencies(latencyRate);
+
+    // Send response message
+    handler.sendMessage(wsSession, new TextMessage(response.toString()));
   }
 
   private Thread gatherLatencies(final int rateKmsLatency) {

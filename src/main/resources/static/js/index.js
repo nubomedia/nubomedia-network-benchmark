@@ -95,6 +95,9 @@ function startResponse(message) {
 			});
 		}
 
+		console.info('* * * * Session started * * * *');
+		enableStopButton();
+
 		var autoStop = $('input[name=stopMethod]:checked').val() == "auto";
 		if (autoStop) {
 			var stopTime = document.getElementById('stopTime').value;
@@ -123,9 +126,6 @@ function start() {
 				});
 
 	}
-
-	// Wait to finish the candidates gathering
-	setTimeout(enableStopButton, 5000);
 }
 
 function onOffer(error, sdpOffer) {
@@ -160,7 +160,7 @@ function onIceCandidate(candidate) {
 	var message = {
 		id : 'onIceCandidate',
 		candidate : candidate
-	};
+	}
 	sendMessage(message);
 }
 
