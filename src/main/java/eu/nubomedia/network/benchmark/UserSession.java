@@ -316,19 +316,25 @@ public class UserSession {
     }
 
     if (sourceMediaPipeline != null) {
-      log.info("[WS session {}] Releasing media pipelines", wsSession.getId());
+      log.info("[WS session {}] Releasing source media pipeline", wsSession.getId());
       sourceMediaPipeline.release();
       sourceMediaPipeline = null;
+    }
 
+    if (targetMediaPipeline != null) {
+      log.info("[WS session {}] Releasing target media pipeline", wsSession.getId());
       targetMediaPipeline.release();
       targetMediaPipeline = null;
     }
 
     if (sourceKurentoClient != null) {
-      log.info("[WS session {}] Destroying kurentoClients", wsSession.getId());
+      log.info("[WS session {}] Destroying source kurentoClient", wsSession.getId());
       sourceKurentoClient.destroy();
       sourceKurentoClient = null;
+    }
 
+    if (targetKurentoClient != null) {
+      log.info("[WS session {}] Destroying target kurentoClient", wsSession.getId());
       targetKurentoClient.destroy();
       targetKurentoClient = null;
     }
