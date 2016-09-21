@@ -49,7 +49,7 @@
 		<nubomedia-media-client.version>6.5.0</nubomedia-media-client.version>
 
 		<!-- Main class -->
-		<start-class>eu.nubomedia.benchmark.network.NetworkBenchmarkApp</start-class>
+		<start-class>eu.nubomedia.network.benchmark.NetworkBenchmarkApp</start-class>
 	</properties>
 
 	<dependencies>
