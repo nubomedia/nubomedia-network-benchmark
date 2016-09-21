@@ -170,7 +170,7 @@ public class UserSession {
                   try {
                     latencies.put(w1.getName(), getVideoE2ELatency(w1));
                   } catch (Exception e) {
-                    log.debug("Exception gathering videoE2ELatency {}", e.getMessage());
+                    log.debug("Exception gathering latency in pipeline #1 {}", e.getMessage());
                   }
                 }
               });
@@ -180,15 +180,15 @@ public class UserSession {
                 @Override
                 public void run() {
                   try {
-                    latencies.put(w2.getName(), getVideoInputLatency(w2));
+                    latencies.put(w2.getName(), getVideoE2ELatency(w2));
                   } catch (Exception e) {
-                    log.debug("Exception gathering videoE2ELatency {}", e.getMessage());
+                    log.debug("Exception gathering latency in pipeline #2 {}", e.getMessage());
                   }
                 }
               });
             }
           } catch (Exception e) {
-            log.debug("Exception gathering videoE2ELatency {}", e.getMessage());
+            log.debug("Exception gathering latency {}", e.getMessage());
           } finally {
             try {
               Thread.sleep(rateKmsLatency);
@@ -248,7 +248,7 @@ public class UserSession {
     return writer.toString();
   }
 
-  private double getVideoE2ELatency(MediaElement mediaElement) {
+  protected double getVideoE2ELatency(MediaElement mediaElement) {
     Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
     Collection<Stats> values = stats.values();
     for (Stats s : values) {
@@ -262,7 +262,7 @@ public class UserSession {
     return 0;
   }
 
-  private double getVideoInputLatency(MediaElement mediaElement) {
+  protected double getVideoInputLatency(MediaElement mediaElement) {
     Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
     Collection<Stats> values = stats.values();
     for (Stats s : values) {
