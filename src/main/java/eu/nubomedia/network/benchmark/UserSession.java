@@ -38,6 +38,7 @@ import org.kurento.client.MediaPipeline;
 import org.kurento.client.MediaType;
 import org.kurento.client.OnIceCandidateEvent;
 import org.kurento.client.Properties;
+import org.kurento.client.RTCInboundRTPStreamStats;
 import org.kurento.client.RTCOutboundRTPStreamStats;
 import org.kurento.client.RecorderEndpoint;
 import org.kurento.client.Stats;
@@ -162,7 +163,7 @@ public class UserSession {
     Thread thread = new Thread(new Runnable() {
       @Override
       public void run() {
-        executor = Executors.newFixedThreadPool(4 * sourceMediaElementList.size());
+        executor = Executors.newFixedThreadPool(6 * sourceMediaElementList.size());
 
         while (true) {
           try {
@@ -194,6 +195,16 @@ public class UserSession {
                 @Override
                 public void run() {
                   try {
+                    latencies.put("jitter-usec-" + w1.getName(), getJitter(w1));
+                  } catch (Exception e) {
+                    log.debug("Exception gathering jitter in pipeline #1 {}", e.getMessage());
+                  }
+                }
+              });
+              executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                  try {
                     latencies.put("latency-usec-" + w2.getName(), getVideoE2ELatency(w2));
                   } catch (Exception e) {
                     log.debug("Exception gathering latency in pipeline #2 {}", e.getMessage());
@@ -207,6 +218,16 @@ public class UserSession {
                     latencies.put("packetLost-" + w2.getName(), getPacketsLost(w2));
                   } catch (Exception e) {
                     log.debug("Exception gathering packetLost in pipeline #2 {}", e.getMessage());
+                  }
+                }
+              });
+              executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                  try {
+                    latencies.put("jitter-usec-" + w2.getName(), getJitter(w2));
+                  } catch (Exception e) {
+                    log.debug("Exception gathering jitter in pipeline #2 {}", e.getMessage());
                   }
                 }
               });
@@ -294,6 +315,18 @@ public class UserSession {
     for (Stats s : values) {
       if (s instanceof RTCOutboundRTPStreamStats) {
         return ((RTCOutboundRTPStreamStats) s).getPacketsLost();
+      }
+
+    }
+    return 0;
+  }
+
+  protected double getJitter(MediaElement mediaElement) {
+    Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
+    Collection<Stats> values = stats.values();
+    for (Stats s : values) {
+      if (s instanceof RTCInboundRTPStreamStats) {
+        return ((RTCInboundRTPStreamStats) s).getJitter() / 1000; // microseconds
       }
     }
     return 0;
@@ -406,7 +439,7 @@ public class UserSession {
 
   public String getLatenciesAsCsv() throws IOException {
     String emptyLine = "";
-    for (int i = 0; i < 4 * sourceMediaElementList.size(); i++) {
+    for (int i = 0; i < 6 * sourceMediaElementList.size(); i++) {
       if (i != 0) {
         emptyLine += ",";
       }
