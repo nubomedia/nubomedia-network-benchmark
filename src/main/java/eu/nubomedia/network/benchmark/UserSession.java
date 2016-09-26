@@ -17,6 +17,8 @@ package eu.nubomedia.network.benchmark;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -36,6 +38,7 @@ import org.kurento.client.MediaPipeline;
 import org.kurento.client.MediaType;
 import org.kurento.client.OnIceCandidateEvent;
 import org.kurento.client.Properties;
+import org.kurento.client.RTCOutboundRTPStreamStats;
 import org.kurento.client.RecorderEndpoint;
 import org.kurento.client.Stats;
 import org.kurento.client.WebRtcEndpoint;
@@ -159,30 +162,51 @@ public class UserSession {
     Thread thread = new Thread(new Runnable() {
       @Override
       public void run() {
-        executor = Executors.newFixedThreadPool(2 * sourceMediaElementList.size());
+        executor = Executors.newFixedThreadPool(4 * sourceMediaElementList.size());
 
         while (true) {
           try {
-            for (final MediaElement w1 : sourceMediaElementList) {
+            for (int i = 0; i < sourceMediaElementList.size(); i++) {
+              final MediaElement w1 = sourceMediaElementList.get(i);
+              final MediaElement w2 = targetMediaElementList.get(i);
+
               executor.execute(new Runnable() {
                 @Override
                 public void run() {
                   try {
-                    latencies.put(w1.getName(), getVideoE2ELatency(w1));
+                    latencies.put("latency-usec-" + w1.getName(), getVideoE2ELatency(w1));
                   } catch (Exception e) {
                     log.debug("Exception gathering latency in pipeline #1 {}", e.getMessage());
                   }
                 }
               });
-            }
-            for (final MediaElement w2 : targetMediaElementList) {
               executor.execute(new Runnable() {
                 @Override
                 public void run() {
                   try {
-                    latencies.put(w2.getName(), getVideoE2ELatency(w2));
+                    latencies.put("packetLost-" + w1.getName(), getPacketsLost(w1));
+                  } catch (Exception e) {
+                    log.debug("Exception gathering packetLost in pipeline #1 {}", e.getMessage());
+                  }
+                }
+              });
+              executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                  try {
+                    latencies.put("latency-usec-" + w2.getName(), getVideoE2ELatency(w2));
                   } catch (Exception e) {
                     log.debug("Exception gathering latency in pipeline #2 {}", e.getMessage());
+                  }
+                }
+              });
+              executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                  try {
+                    latencies.put("packetLost-" + w2.getName(), getPacketsLost(w2));
+                  } catch (Exception e) {
+                    log.debug("Exception gathering packetLost in pipeline #2 {}", e.getMessage());
                   }
                 }
               });
@@ -206,6 +230,7 @@ public class UserSession {
 
   public String getCsv(Multimap<String, Object> multimap, boolean orderKeys) throws IOException {
     StringWriter writer = new StringWriter();
+    NumberFormat numberFormat = new DecimalFormat("##.###");
 
     // Header
     boolean first = true;
@@ -232,7 +257,8 @@ public class UserSession {
           if (!first) {
             writer.append(',');
           }
-          writer.append(array[i].toString());
+
+          writer.append(numberFormat.format(array[i]));
         }
         first = false;
       }
@@ -257,6 +283,17 @@ public class UserSession {
         if (!e2eLatency.isEmpty()) {
           return e2eLatency.get(0).getAvg() / 1000; // microseconds
         }
+      }
+    }
+    return 0;
+  }
+
+  protected long getPacketsLost(MediaElement mediaElement) {
+    Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
+    Collection<Stats> values = stats.values();
+    for (Stats s : values) {
+      if (s instanceof RTCOutboundRTPStreamStats) {
+        return ((RTCOutboundRTPStreamStats) s).getPacketsLost();
       }
     }
     return 0;
@@ -369,11 +406,11 @@ public class UserSession {
 
   public String getLatenciesAsCsv() throws IOException {
     String emptyLine = "";
-    for (int i = 0; i < 2 * sourceMediaElementList.size(); i++) {
+    for (int i = 0; i < 4 * sourceMediaElementList.size(); i++) {
       if (i != 0) {
         emptyLine += ",";
       }
-      emptyLine += "0.0";
+      emptyLine += "0";
     }
     emptyLine += "\n";
     String csv = getCsv(latencies, true);
