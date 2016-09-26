@@ -163,7 +163,7 @@ public class UserSession {
     Thread thread = new Thread(new Runnable() {
       @Override
       public void run() {
-        executor = Executors.newFixedThreadPool(6 * sourceMediaElementList.size());
+        executor = Executors.newFixedThreadPool(2 * sourceMediaElementList.size());
 
         while (true) {
           try {
@@ -175,9 +175,12 @@ public class UserSession {
                 @Override
                 public void run() {
                   try {
-                    latencies.put("latency-usec-" + w1.getName(), getVideoE2ELatency(w1));
+                    Object[] stats = getStats(w1);
+                    latencies.put("latency-usec-" + w1.getName(), stats[0]);
+                    latencies.put("packetLost-" + w1.getName(), stats[1]);
+                    latencies.put("jitter-usec-" + w1.getName(), stats[2]);
                   } catch (Exception e) {
-                    log.debug("Exception gathering latency in pipeline #1 {}", e.getMessage());
+                    log.debug("Exception gathering stats in pipeline #1 {}", e.getMessage());
                   }
                 }
               });
@@ -185,49 +188,12 @@ public class UserSession {
                 @Override
                 public void run() {
                   try {
-                    latencies.put("packetLost-" + w1.getName(), getPacketsLost(w1));
+                    Object[] stats = getStats(w2);
+                    latencies.put("latency-usec-" + w2.getName(), stats[0]);
+                    latencies.put("packetLost-" + w2.getName(), stats[1]);
+                    latencies.put("jitter-usec-" + w2.getName(), stats[2]);
                   } catch (Exception e) {
-                    log.debug("Exception gathering packetLost in pipeline #1 {}", e.getMessage());
-                  }
-                }
-              });
-              executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                  try {
-                    latencies.put("jitter-usec-" + w1.getName(), getJitter(w1));
-                  } catch (Exception e) {
-                    log.debug("Exception gathering jitter in pipeline #1 {}", e.getMessage());
-                  }
-                }
-              });
-              executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                  try {
-                    latencies.put("latency-usec-" + w2.getName(), getVideoE2ELatency(w2));
-                  } catch (Exception e) {
-                    log.debug("Exception gathering latency in pipeline #2 {}", e.getMessage());
-                  }
-                }
-              });
-              executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                  try {
-                    latencies.put("packetLost-" + w2.getName(), getPacketsLost(w2));
-                  } catch (Exception e) {
-                    log.debug("Exception gathering packetLost in pipeline #2 {}", e.getMessage());
-                  }
-                }
-              });
-              executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                  try {
-                    latencies.put("jitter-usec-" + w2.getName(), getJitter(w2));
-                  } catch (Exception e) {
-                    log.debug("Exception gathering jitter in pipeline #2 {}", e.getMessage());
+                    log.debug("Exception gathering stats in pipeline #2 {}", e.getMessage());
                   }
                 }
               });
@@ -295,55 +261,32 @@ public class UserSession {
     return writer.toString();
   }
 
-  protected double getVideoE2ELatency(MediaElement mediaElement) {
+  private Object[] getStats(MediaElement mediaElement) {
+    int countStats = 3;
+    Object[] output = { 0, 0, 0 };
     Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
     Collection<Stats> values = stats.values();
     for (Stats s : values) {
       if (s instanceof EndpointStats) {
         List<MediaLatencyStat> e2eLatency = ((EndpointStats) s).getE2ELatency();
         if (!e2eLatency.isEmpty()) {
-          return e2eLatency.get(0).getAvg() / 1000; // microseconds
+          output[0] = e2eLatency.get(0).getAvg() / 1000; // microseconds
+          countStats--;
+        }
+        if (s instanceof RTCOutboundRTPStreamStats) {
+          output[1] = ((RTCOutboundRTPStreamStats) s).getPacketsLost();
+          countStats--;
+        }
+        if (s instanceof RTCInboundRTPStreamStats) {
+          output[2] = ((RTCInboundRTPStreamStats) s).getJitter() / 1000; // microseconds
+          countStats--;
+        }
+        if (countStats == 0) {
+          break;
         }
       }
     }
-    return 0;
-  }
-
-  protected long getPacketsLost(MediaElement mediaElement) {
-    Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
-    Collection<Stats> values = stats.values();
-    for (Stats s : values) {
-      if (s instanceof RTCOutboundRTPStreamStats) {
-        return ((RTCOutboundRTPStreamStats) s).getPacketsLost();
-      }
-
-    }
-    return 0;
-  }
-
-  protected double getJitter(MediaElement mediaElement) {
-    Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
-    Collection<Stats> values = stats.values();
-    for (Stats s : values) {
-      if (s instanceof RTCInboundRTPStreamStats) {
-        return ((RTCInboundRTPStreamStats) s).getJitter() / 1000; // microseconds
-      }
-    }
-    return 0;
-  }
-
-  protected double getVideoInputLatency(MediaElement mediaElement) {
-    Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
-    Collection<Stats> values = stats.values();
-    for (Stats s : values) {
-      if (s instanceof EndpointStats) {
-        List<MediaLatencyStat> inputLatency = ((EndpointStats) s).getInputLatency();
-        if (!inputLatency.isEmpty()) {
-          return inputLatency.get(0).getAvg() / 1000; // microseconds
-        }
-      }
-    }
-    return 0;
+    return output;
   }
 
   private void connectWebRtcEndpoints(final WebRtcEndpoint webRtcEndpoint1,
