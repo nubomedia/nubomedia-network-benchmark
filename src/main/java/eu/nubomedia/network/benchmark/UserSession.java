@@ -140,8 +140,8 @@ public class UserSession {
       connectWebRtcEndpoints(webRtcEndpoint1, webRtcEndpoint2);
       sourceMediaElementList.add(webRtcEndpoint1);
 
-      RecorderEndpoint recorder = new RecorderEndpoint.Builder(targetMediaPipeline,
-          "file:///tmp/" + webRtcEndpoint2.getName() + ".webm").build();
+      RecorderEndpoint recorder =
+          new RecorderEndpoint.Builder(targetMediaPipeline, "file:///dev/null").build();
       webRtcEndpoint2.connect(recorder);
       recorder.setName(webRtcEndpoint2.getName());
       recorder.record();
