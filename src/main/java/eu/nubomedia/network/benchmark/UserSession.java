@@ -104,6 +104,11 @@ public class UserSession {
     sourceKurentoClient = KurentoClient.create(properties);
     targetKurentoClient = KurentoClient.create(properties);
 
+    log.info("[WS session {}] Source KurentoClient {} [serverInfo={}]", sourceKurentoClient,
+        sourceKurentoClient.getServerManager().getInfo());
+    log.info("[WS session {}] Target KurentoClient {} [serverInfo={}]", targetKurentoClient,
+        targetKurentoClient.getServerManager().getInfo());
+
     // Response
     JsonObject response = new JsonObject();
     response.addProperty("id", "startResponse");
@@ -112,6 +117,9 @@ public class UserSession {
     // Media pipelines
     sourceMediaPipeline = sourceKurentoClient.createMediaPipeline();
     targetMediaPipeline = targetKurentoClient.createMediaPipeline();
+
+    log.info("[WS session {}] Source MediaPipeline {}", sourceMediaPipeline);
+    log.info("[WS session {}] Target MediaPipeline {}", targetKurentoClient);
 
     sourceWebRtcEndpoint = createWebRtcEndpoint(sourceMediaPipeline, bandwidth);
     sourceWebRtcEndpoint.addOnIceCandidateListener(new EventListener<OnIceCandidateEvent>() {
@@ -182,7 +190,7 @@ public class UserSession {
                     latencies.put("packetLost-" + w1.getName(), stats[1]);
                     latencies.put("jitter-usec-" + w1.getName(), stats[2]);
                   } catch (Exception e) {
-                    log.debug("Exception gathering stats in pipeline #1 {}", e.getMessage());
+                    log.info("Exception gathering stats in pipeline #1 {}", e.getMessage());
                   }
                 }
               });
@@ -195,7 +203,7 @@ public class UserSession {
                     latencies.put("packetLost-" + w2.getName(), stats[1]);
                     latencies.put("jitter-usec-" + w2.getName(), stats[2]);
                   } catch (Exception e) {
-                    log.debug("Exception gathering stats in pipeline #2 {}", e.getMessage());
+                    log.info("Exception gathering stats in pipeline #2 {}", e.getMessage());
                   }
                 }
               });
@@ -206,7 +214,7 @@ public class UserSession {
             try {
               Thread.sleep(rateKmsLatency);
             } catch (InterruptedException e) {
-              log.debug("Interrupted thread for gathering videoE2ELatency");
+              log.info("Interrupted thread for gathering videoE2ELatency");
             }
           }
         }
