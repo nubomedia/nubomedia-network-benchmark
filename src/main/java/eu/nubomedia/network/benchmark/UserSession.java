@@ -97,17 +97,19 @@ public class UserSession {
     // KurentoClients
     int bandwidth = jsonMessage.getAsJsonPrimitive("bandwidth").getAsInt();
     int loadPoints = jsonMessage.getAsJsonPrimitive("loadPoints").getAsInt();
-    log.info("[WS session {}] Reserving {} points to create KurentoClient", wsSession.getId(),
-        loadPoints);
+    log.info("[WS session {}] Reserving {} points to create source KurentoClient",
+        wsSession.getId(), loadPoints);
     Properties properties = new Properties();
     properties.add("loadPoints", loadPoints);
     sourceKurentoClient = KurentoClient.create(properties);
-    targetKurentoClient = KurentoClient.create(properties);
+    log.info("[WS session {}] Source KurentoClient {} - {}", wsSession.getId(), sourceKurentoClient,
+        sourceKurentoClient.getServerManager());
 
-    log.info("[WS session {}] Source KurentoClient {} [serverInfo={}]", sourceKurentoClient,
-        sourceKurentoClient.getServerManager().getInfo());
-    log.info("[WS session {}] Target KurentoClient {} [serverInfo={}]", targetKurentoClient,
-        targetKurentoClient.getServerManager().getInfo());
+    log.info("[WS session {}] Reserving {} points to create target KurentoClient",
+        wsSession.getId(), loadPoints);
+    targetKurentoClient = KurentoClient.create(properties);
+    log.info("[WS session {}] Target KurentoClient {} - {}", wsSession.getId(), targetKurentoClient,
+        targetKurentoClient.getServerManager());
 
     // Response
     JsonObject response = new JsonObject();
@@ -118,8 +120,8 @@ public class UserSession {
     sourceMediaPipeline = sourceKurentoClient.createMediaPipeline();
     targetMediaPipeline = targetKurentoClient.createMediaPipeline();
 
-    log.info("[WS session {}] Source MediaPipeline {}", sourceMediaPipeline);
-    log.info("[WS session {}] Target MediaPipeline {}", targetKurentoClient);
+    log.info("[WS session {}] Source MediaPipeline {}", wsSession.getId(), sourceMediaPipeline);
+    log.info("[WS session {}] Target MediaPipeline {}", wsSession.getId(), targetKurentoClient);
 
     sourceWebRtcEndpoint = createWebRtcEndpoint(sourceMediaPipeline, bandwidth);
     sourceWebRtcEndpoint.addOnIceCandidateListener(new EventListener<OnIceCandidateEvent>() {
@@ -214,7 +216,7 @@ public class UserSession {
             try {
               Thread.sleep(rateKmsLatency);
             } catch (InterruptedException e) {
-              log.info("Interrupted thread for gathering videoE2ELatency");
+              log.debug("Interrupted thread for gathering videoE2ELatency");
             }
           }
         }
