@@ -85,21 +85,23 @@ public class NetworkBenchmarkHandler extends TextWebSocketHandler {
       sendMessage(wsSession, new TextMessage(response.toString()));
     } else {
       UserSession userSession = new UserSession(wsSession, this, jsonMessage);
-      userSession.initSession();
       sessions.put(wsSessionId, userSession);
+      userSession.initSession();
 
-      log.debug("[WS session {}] Starting session {}", wsSession.getId(), sessions);
+      log.info("[WS session {}] Starting session {}", wsSession.getId(), sessions);
     }
   }
 
   private synchronized void stop(WebSocketSession wsSession)
       throws IOException, InterruptedException {
+
     String wsSessionId = wsSession.getId();
+    log.info("[WS session {}] Stopping session", wsSessionId);
+
     UserSession userSession = sessions.get(wsSessionId);
-
     if (userSession != null) {
-      log.info("[WS session {}] Stopping session", wsSessionId);
 
+      log.info("[WS session {}] Releasing user session {}", userSession);
       // Release session
       userSession.releaseSession();
 
