@@ -100,8 +100,6 @@ public class NetworkBenchmarkHandler extends TextWebSocketHandler {
 
     UserSession userSession = sessions.get(wsSessionId);
     if (userSession != null) {
-
-      log.info("[WS session {}] Releasing user session {}", userSession);
       // Release session
       userSession.releaseSession();
 
