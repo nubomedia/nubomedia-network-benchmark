@@ -285,17 +285,17 @@ public class UserSession {
           output[0] = e2eLatency.get(0).getAvg() / 1000; // microseconds
           countStats--;
         }
-        if (s instanceof RTCOutboundRTPStreamStats) {
-          output[1] = ((RTCOutboundRTPStreamStats) s).getPacketsLost();
-          countStats--;
-        }
-        if (s instanceof RTCInboundRTPStreamStats) {
-          output[2] = ((RTCInboundRTPStreamStats) s).getJitter() / 1000; // microseconds
-          countStats--;
-        }
-        if (countStats == 0) {
-          break;
-        }
+      }
+      if (s instanceof RTCOutboundRTPStreamStats) {
+        output[1] = ((RTCOutboundRTPStreamStats) s).getPacketsLost();
+        countStats--;
+      }
+      if (s instanceof RTCInboundRTPStreamStats) {
+        output[2] = ((RTCInboundRTPStreamStats) s).getJitter() / 1000; // microseconds
+        countStats--;
+      }
+      if (countStats == 0) {
+        break;
       }
     }
     return output;
