@@ -175,7 +175,7 @@ public class UserSession {
     Thread thread = new Thread(new Runnable() {
       @Override
       public void run() {
-        executor = Executors.newFixedThreadPool(2 * sourceMediaElementList.size());
+        executor = Executors.newFixedThreadPool(2 * sourceMediaElementList.size() + 1);
 
         while (true) {
           try {
@@ -206,6 +206,19 @@ public class UserSession {
                     latencies.put("jitter-usec-" + w2.getName(), stats[2]);
                   } catch (Exception e) {
                     log.info("Exception gathering stats in pipeline #2 {}", e.getMessage());
+                  }
+                }
+              });
+              executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                  Map<String, Stats> stats = sourceWebRtcEndpoint.getStats(MediaType.VIDEO);
+                  Collection<Stats> values = stats.values();
+                  for (Stats s : values) {
+                    if (s instanceof RTCInboundRTPStreamStats) {
+                      double jitter = ((RTCInboundRTPStreamStats) s).getJitter() * 1000; // msec
+                      latencies.put("jitter-msec-sourceWebRtcEndpoint", jitter);
+                    }
                   }
                 }
               });
