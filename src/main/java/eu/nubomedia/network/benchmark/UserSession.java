@@ -124,6 +124,7 @@ public class UserSession {
     log.info("[WS session {}] Target MediaPipeline {}", wsSession.getId(), targetKurentoClient);
 
     sourceWebRtcEndpoint = createWebRtcEndpoint(sourceMediaPipeline, bandwidth);
+    sourceWebRtcEndpoint.setName("sourceWebRtcEndpoint");
     sourceWebRtcEndpoint.addOnIceCandidateListener(new EventListener<OnIceCandidateEvent>() {
       @Override
       public void onEvent(OnIceCandidateEvent event) {
@@ -139,6 +140,7 @@ public class UserSession {
     response.addProperty("sdpAnswer", sdpAnswer);
 
     sourceWebRtcEndpoint.gatherCandidates();
+    sourceMediaElementList.add(sourceWebRtcEndpoint);
 
     int webrtcChannels = jsonMessage.getAsJsonPrimitive("webrtcChannels").getAsInt();
     for (int i = 0; i < webrtcChannels; i++) {
@@ -153,9 +155,10 @@ public class UserSession {
       RecorderEndpoint recorder =
           new RecorderEndpoint.Builder(targetMediaPipeline, "file:///dev/null").build();
       webRtcEndpoint2.connect(recorder);
-      recorder.setName(webRtcEndpoint2.getName());
+      recorder.setName("recorderWebRtcEndpoint" + i);
       recorder.record();
       targetMediaElementList.add(recorder);
+      targetMediaElementList.add(webRtcEndpoint2);
     }
 
     int latencyRate = jsonMessage.getAsJsonPrimitive("latencyRate").getAsInt();
@@ -175,14 +178,12 @@ public class UserSession {
     Thread thread = new Thread(new Runnable() {
       @Override
       public void run() {
-        executor = Executors.newFixedThreadPool(2 * sourceMediaElementList.size() + 1);
+        executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
         while (true) {
           try {
             for (int i = 0; i < sourceMediaElementList.size(); i++) {
               final MediaElement w1 = sourceMediaElementList.get(i);
-              final MediaElement w2 = targetMediaElementList.get(i);
-
               executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -190,12 +191,15 @@ public class UserSession {
                     Object[] stats = getStats(w1);
                     latencies.put("latency-usec-" + w1.getName(), stats[0]);
                     latencies.put("packetLost-" + w1.getName(), stats[1]);
-                    latencies.put("jitter-usec-" + w1.getName(), stats[2]);
+                    latencies.put("jitter-msec-" + w1.getName(), stats[2]);
                   } catch (Exception e) {
                     log.info("Exception gathering stats in pipeline #1 {}", e.getMessage());
                   }
                 }
               });
+            }
+            for (int i = 0; i < targetMediaElementList.size(); i++) {
+              final MediaElement w2 = targetMediaElementList.get(i);
               executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -203,22 +207,9 @@ public class UserSession {
                     Object[] stats = getStats(w2);
                     latencies.put("latency-usec-" + w2.getName(), stats[0]);
                     latencies.put("packetLost-" + w2.getName(), stats[1]);
-                    latencies.put("jitter-usec-" + w2.getName(), stats[2]);
+                    latencies.put("jitter-msec-" + w2.getName(), stats[2]);
                   } catch (Exception e) {
                     log.info("Exception gathering stats in pipeline #2 {}", e.getMessage());
-                  }
-                }
-              });
-              executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                  Map<String, Stats> stats = sourceWebRtcEndpoint.getStats(MediaType.VIDEO);
-                  Collection<Stats> values = stats.values();
-                  for (Stats s : values) {
-                    if (s instanceof RTCInboundRTPStreamStats) {
-                      double jitter = ((RTCInboundRTPStreamStats) s).getJitter() * 1000; // msec
-                      latencies.put("jitter-msec-sourceWebRtcEndpoint", jitter);
-                    }
                   }
                 }
               });
@@ -304,7 +295,7 @@ public class UserSession {
         countStats--;
       }
       if (s instanceof RTCInboundRTPStreamStats) {
-        output[2] = ((RTCInboundRTPStreamStats) s).getJitter() / 1000; // microseconds
+        output[2] = ((RTCInboundRTPStreamStats) s).getJitter() * 1000; // milliseconds
         countStats--;
       }
       if (countStats == 0) {
