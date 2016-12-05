@@ -70,7 +70,7 @@ function stopCommunication(message) {
 		var j = myUrl.indexOf(".");
 		var appName = (i != -1) && (j != -1) ? myUrl.substring(i, j)
 				: new Date().getTime();
-		downloadFile("-" + appName + ".csv", message.latencies);
+		downloadFile(appName + ".csv", message.latencies);
 	}
 	dispose();
 }
