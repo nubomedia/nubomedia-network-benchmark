@@ -65,7 +65,12 @@ ws.onmessage = function(message) {
 
 function stopCommunication(message) {
 	if (message.latencies) {
-		downloadFile(new Date().getTime() + ".csv", message.latencies);
+		var myUrl = window.location.href;
+		var i = myUrl.indexOf("/") + 2;
+		var j = myUrl.indexOf(".");
+		var appName = (i != -1) && (j != -1) ? myUrl.substring(i, j)
+				: new Date().getTime();
+		downloadFile("-" + appName + ".csv", message.latencies);
 	}
 	dispose();
 }
