@@ -192,6 +192,8 @@ public class UserSession {
                     latencies.put("latency-usec-" + w1.getName(), stats[0]);
                     latencies.put("packetLost-" + w1.getName(), stats[1]);
                     latencies.put("jitter-msec-" + w1.getName(), stats[2]);
+                    latencies.put("bytes-sent-" + w1.getName(), stats[3]);
+                    latencies.put("bytes-received-" + w1.getName(), stats[4]);
                   } catch (Exception e) {
                     log.info("Exception gathering stats in pipeline #1 {}", e.getMessage());
                   }
@@ -208,6 +210,8 @@ public class UserSession {
                     latencies.put("latency-usec-" + w2.getName(), stats[0]);
                     latencies.put("packetLost-" + w2.getName(), stats[1]);
                     latencies.put("jitter-msec-" + w2.getName(), stats[2]);
+                    latencies.put("bytes-sent-" + w2.getName(), stats[3]);
+                    latencies.put("bytes-received-" + w2.getName(), stats[4]);
                   } catch (Exception e) {
                     log.info("Exception gathering stats in pipeline #2 {}", e.getMessage());
                   }
@@ -278,8 +282,8 @@ public class UserSession {
   }
 
   private Object[] getStats(MediaElement mediaElement) {
-    int countStats = 3;
-    Object[] output = { 0, 0, 0 };
+    Object[] output = { 0, 0, 0, 0, 0};
+    int countStats = output.length;
     Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
     Collection<Stats> values = stats.values();
     for (Stats s : values) {
@@ -292,11 +296,13 @@ public class UserSession {
       }
       if (s instanceof RTCOutboundRTPStreamStats) {
         output[1] = ((RTCOutboundRTPStreamStats) s).getPacketsLost();
-        countStats--;
+        output[3] = ((RTCOutboundRTPStreamStats) s).getBytesSent();
+        countStats = countStats - 2;
       }
       if (s instanceof RTCInboundRTPStreamStats) {
         output[2] = ((RTCInboundRTPStreamStats) s).getJitter() * 1000; // milliseconds
-        countStats--;
+        output[4] = ((RTCInboundRTPStreamStats) s).getBytesReceived();
+        countStats = countStats - 2;
       }
       if (countStats == 0) {
         break;
