@@ -191,6 +191,7 @@ public class UserSession {
                     Object[] stats = getStats(w1);
                     latencies.put("latency-usec-" + w1.getName(), stats[0]);
                     latencies.put("packetLost-" + w1.getName(), stats[1]);
+                    latencies.put("packetSent-" + w1.getName(), stats[5]);
                     latencies.put("jitter-msec-" + w1.getName(), stats[2]);
                     latencies.put("bytes-sent-" + w1.getName(), stats[3]);
                     latencies.put("bytes-received-" + w1.getName(), stats[4]);
@@ -209,6 +210,7 @@ public class UserSession {
                     Object[] stats = getStats(w2);
                     latencies.put("latency-usec-" + w2.getName(), stats[0]);
                     latencies.put("packetLost-" + w2.getName(), stats[1]);
+                    latencies.put("packetSent-" + w2.getName(), stats[5]);
                     latencies.put("jitter-msec-" + w2.getName(), stats[2]);
                     latencies.put("bytes-sent-" + w2.getName(), stats[3]);
                     latencies.put("bytes-received-" + w2.getName(), stats[4]);
@@ -282,7 +284,7 @@ public class UserSession {
   }
 
   private Object[] getStats(MediaElement mediaElement) {
-    Object[] output = { 0, 0, 0, 0, 0};
+    Object[] output = { 0, 0, 0, 0, 0, 0};
     int countStats = output.length;
     Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
     Collection<Stats> values = stats.values();
@@ -296,8 +298,9 @@ public class UserSession {
       }
       if (s instanceof RTCOutboundRTPStreamStats) {
         output[1] = ((RTCOutboundRTPStreamStats) s).getPacketsLost();
+        output[5] = ((RTCOutboundRTPStreamStats) s).getPacketsSent();
         output[3] = ((RTCOutboundRTPStreamStats) s).getBytesSent();
-        countStats = countStats - 2;
+        countStats = countStats - 3;
       }
       if (s instanceof RTCInboundRTPStreamStats) {
         output[2] = ((RTCInboundRTPStreamStats) s).getJitter() * 1000; // milliseconds
