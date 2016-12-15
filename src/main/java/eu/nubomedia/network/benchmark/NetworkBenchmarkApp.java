@@ -34,18 +34,18 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 public class NetworkBenchmarkApp implements WebSocketConfigurer {
 
-  @Bean
-  public NetworkBenchmarkHandler callHandler() {
-    return new NetworkBenchmarkHandler();
-  }
+	@Bean
+	public NetworkBenchmarkHandler callHandler() {
+		return new NetworkBenchmarkHandler();
+	}
 
-  @Override
-  public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-    registry.addHandler(callHandler(), "/network-benchmark");
-  }
+	@Override
+	public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+		registry.addHandler(callHandler(), "/network-benchmark");
+	}
 
-  public static void main(String[] args) throws Exception {
-    new SpringApplication(NetworkBenchmarkApp.class).run(args);
-  }
+	public static void main(String[] args) throws Exception {
+		new SpringApplication(NetworkBenchmarkApp.class).run(args);
+	}
 
 }
