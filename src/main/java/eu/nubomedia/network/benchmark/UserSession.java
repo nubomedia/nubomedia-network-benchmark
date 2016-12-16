@@ -177,40 +177,24 @@ public class UserSession {
 
 				while (true) {
 					try {
-						for (int i = 0; i < sourceMediaElementList.size(); i++) {
-							final MediaElement w1 = sourceMediaElementList.get(i);
+						for (final MediaElement w1 : sourceMediaElementList) {
 							executor.execute(new Runnable() {
 								@Override
 								public void run() {
 									try {
-										Object[] stats = getStats(w1);
-										latencies.put("latency-usec-" + w1.getName(), stats[0]);
-										latencies.put("packetLost-" + w1.getName(), stats[1]);
-										latencies.put("packetSent-" + w1.getName(), stats[5]);
-										latencies.put("jitter-msec-" + w1.getName(), stats[2]);
-										latencies.put("bytes-sent-" + w1.getName(), stats[3]);
-										latencies.put("bytes-received-" + w1.getName(), stats[4]);
+										gatherStats(getStats(w1), w1.getName());
 									} catch (Exception e) {
 										log.info("Exception gathering stats in pipeline #1 {}", e.getMessage());
 									}
 								}
 							});
 						}
-						for (int i = 0; i < targetMediaElementList.size(); i++) {
-							final MediaElement w2 = targetMediaElementList.get(i);
+						for (final MediaElement w2 : targetMediaElementList) {
 							executor.execute(new Runnable() {
 								@Override
 								public void run() {
 									try {
-										Object[] stats = getStats(w2);
-										latencies.put("latency-usec-" + w2.getName(), stats[0]);
-										latencies.put("packet-lost-tx-" + w2.getName(), stats[1]);
-										latencies.put("packet-sent-" + w2.getName(), stats[5]);
-										latencies.put("jitter-msec-" + w2.getName(), stats[2]);
-										latencies.put("bytes-sent-" + w2.getName(), stats[3]);
-										latencies.put("bytes-received-" + w2.getName(), stats[4]);
-										latencies.put("packet-received-" + w2.getName(), stats[6]);
-										latencies.put("packet-lost-rx-" + w2.getName(), stats[7]);
+										gatherStats(getStats(w2), w2.getName());
 									} catch (Exception e) {
 										log.info("Exception gathering stats in pipeline #2 {}", e.getMessage());
 									}
@@ -232,6 +216,17 @@ public class UserSession {
 		thread.start();
 
 		return thread;
+	}
+
+	private void gatherStats(Object[] stats, String name) {
+		latencies.put("latency-usec-" + name, stats[0]);
+		latencies.put("packet-lost-tx-" + name, stats[1]);
+		latencies.put("packet-sent-" + name, stats[5]);
+		latencies.put("jitter-msec-" + name, stats[2]);
+		latencies.put("bytes-sent-" + name, stats[3]);
+		latencies.put("bytes-received-" + name, stats[4]);
+		latencies.put("packet-received-" + name, stats[6]);
+		latencies.put("packet-lost-rx-" + name, stats[7]);
 	}
 
 	public String getCsv(Multimap<String, Object> multimap, boolean orderKeys) throws IOException {
@@ -281,7 +276,7 @@ public class UserSession {
 	}
 
 	private Object[] getStats(MediaElement mediaElement) {
-		Object[] output = { 0, 0, 0, 0, 0, 0, 0, 0};
+		Object[] output = { 0, 0, 0, 0, 0, 0, 0, 0 };
 		int countStats = output.length;
 		Map<String, Stats> stats = mediaElement.getStats(MediaType.VIDEO);
 		Collection<Stats> values = stats.values();
