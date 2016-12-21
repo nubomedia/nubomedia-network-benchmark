@@ -120,7 +120,10 @@ public class UserSession {
 		log.info("[WS session {}] Source MediaPipeline {}", wsSession.getId(), sourceMediaPipeline);
 		log.info("[WS session {}] Target MediaPipeline {}", wsSession.getId(), targetKurentoClient);
 
-		sourceWebRtcEndpoint = createWebRtcEndpoint(sourceMediaPipeline, bandwidth);
+		// Configure source WebRtcEndpoint to avoid congestion control
+		sourceWebRtcEndpoint = 	new WebRtcEndpoint.Builder(sourceMediaPipeline).build();
+		sourceWebRtcEndpoint.setMaxVideoRecvBandwidth(0);
+		sourceWebRtcEndpoint.setMinVideoRecvBandwidth(0);
 		sourceWebRtcEndpoint.setName("sourceWebRtcEndpoint");
 		sourceWebRtcEndpoint.addOnIceCandidateListener(new EventListener<OnIceCandidateEvent>() {
 			@Override
